@@ -1,23 +1,35 @@
 using Test, StaticRanges, Dates
-using StaticRanges: can_setfirst, can_setlast, can_setstep, has_step, can_setlength
+using StaticRanges: can_setfirst, can_setlast, can_setstep, has_step, can_setlength,
+    isstatic, isforward, isreverse
+using Base: OneTo
 
-
-
+include("twiceprecision.jl")
 include("mutate.jl")
 include("find.jl")
+include("range_interface.jl")
+include("promotion.jl")
+include("broadcast.jl")
+include("onetorange.jl")
 
 for frange in (mrange, srange)
     @testset "$frange" begin
-        #= cannot infer a static parameter from construction
-        @testset "colon" begin
-            @inferred(frange(10, step=1, stop=0))
-            @inferred(frange(1, step=.2, stop=2))
-            @inferred(frange(1., step=.2, stop=2.))
-            @inferred(frange(2, step=-.2, stop=1))
-            @inferred(frange(1, 0))
-            @inferred(frange(0.0, -0.5))
+
+        @test_throws ArgumentError frange(1)
+        @test_throws ArgumentError frange(1, step=1)
+        @test_throws ArgumentError frange(nothing)
+        @test_throws ArgumentError frange(nothing, length=1)
+        @test_throws ArgumentError frange(1, step=1, stop=1, length=1)
+        if frange == mrange
+            # cannot infer a static parameter from construction
+            @testset "colon" begin
+                @inferred(frange(10, step=1, stop=0))
+                @inferred(frange(1, step=.2, stop=2))
+                @inferred(frange(1., step=.2, stop=2.))
+                @inferred(frange(2, step=-.2, stop=1))
+                @inferred(frange(1, 0))
+                @inferred(frange(0.0, -0.5))
+            end
         end
-        =#
         @testset "indexing" begin
             L32 = frange(Int32(1), stop=Int32(4), length=4)
             L64 = frange(Int64(1), stop=Int64(4), length=4)
@@ -121,71 +133,6 @@ for frange in (mrange, srange)
             @test reverse(reverse(frange(1, 10))) == 1:10
             @test reverse(reverse(frange(typemin(Int), typemax(Int)))) == typemin(Int):typemax(Int)
             @test reverse(reverse(frange(typemin(Int), step=2, stop=typemax(Int)))) == typemin(Int):2:typemax(Int)
-        end
-
-        @testset "intersect" begin
-            @test intersect(frange(1, 5), frange(2, 3)) == 2:3
-            @test intersect(frange(-3, 5), frange(2, 8)) == 2:5
-            @test intersect(frange(-8, -3), frange(-8, -3)) == -8:-3
-            @test intersect(frange(1, 5), frange(5, 13)) == 5:5
-            @test isempty(intersect(frange(-8, -3), frange(-2, 2)))
-
-            @test isempty(intersect(frange(-3, 7), frange(2, 1)))
-            @test intersect(frange(1, 11), frange(-2, step=3, stop=15)) == 1:3:10
-            @test intersect(frange(1, 11), frange(-2, step=2, stop=15)) == 2:2:10
-            @test intersect(frange(1, 11), frange(-2, step=1, stop=15)) == 1:11
-            @test intersect(frange(1, 11), frange(15, step=-1, stop=-2)) == 1:11
-            @test intersect(frange(1, 11), frange(15, step=-4, stop=-2)) == 3:4:11
-            @test intersect(frange(-20, -5), frange(-10, step=3, stop=-2)) == -10:3:-7
-            @test isempty(intersect(frange(-5, 5), frange(-6, step=13, stop=20)))
-            @test isempty(intersect(frange(1, 11), frange(15, step=4, stop=-2)))
-            @test isempty(intersect(frange(11, 1), frange(15, step=-4, stop=-2)))
-            #@test intersect(-5:5, 1+0*(1:3)) == 1:1
-            #@test isempty(intersect(-5:5, 6+0*(1:3)))
-            @test intersect(frange(-15, step=4, stop=7), frange(-10, -2)) == -7:4:-3
-            @test intersect(frange(13, step=-2, stop=1), frange(-2, 8)) == 7:-2:1
-            @test isempty(intersect(frange(13, step=2, stop=1), frange(-2, 8)))
-            @test isempty(intersect(frange(13, step=-2, stop=1), frange(8, -2)))
-            #@test intersect(5+0*(1:4), 2:8) == 5+0*(1:4)
-            #@test isempty(intersect(5+0*(1:4), -7:3))
-            @test intersect(frange(0, step=3, stop=24), frange(0, step=4, stop=24)) == 0:12:24
-            @test intersect(frange(0, step=4, stop=24), frange(0, step=3, stop=24)) == 0:12:24
-            @test intersect(frange(0, step=3, stop=24), frange(24, step=-4, stop=0)) == 0:12:24
-            @test intersect(frange(24, step=-3, stop=0), frange(0, step=4, stop=24)) == 24:-12:0
-            @test intersect(frange(24, step=-3, stop=0), frange(24, step=-4, stop=0)) == 24:-12:0
-            @test intersect(frange(1, step=3, stop=24), frange(0, step=4, stop=24)) == 4:12:16
-            @test intersect(frange(0, step=6, stop=24), frange(0, step=4, stop=24)) == 0:12:24
-            @test isempty(intersect(frange(1, step=6, stop=2400), frange(0, step=4, stop=2400)))
-            @test intersect(frange(-51, step=5, stop=100), frange(-33, step=7, stop=125)) == -26:35:79
-            @test intersect(frange(-51, step=5, stop=100), frange(-32, step=7, stop=125)) == -11:35:94
-            #@test intersect(0:6:24, 6+0*(0:4:24)) == 6:6:6
-            #@test intersect(12+0*(0:6:24), 0:4:24) == AbstractRange(12, 0, 5)
-            #@test isempty(intersect(6+0*(0:6:24), 0:4:24))
-            @test intersect(frange(-10, step=3, stop=24), frange(-10, step=3, stop=24)) == -10:3:23
-            @test isempty(intersect(frange(-11, step=3, stop=24), frange(-10, step=3, stop=24)))
-            @test intersect(frange(typemin(Int), step=2, stop=typemax(Int)), 1:10) == 2:2:10
-            @test intersect(1:10, frange(typemin(Int), step=2, stop=typemax(Int))) == 2:2:10
-
-            @test intersect(reverse(typemin(Int):2:typemax(Int)), frange(typemin(Int), step=2, stop=typemax(Int))) == reverse(typemin(Int):2:typemax(Int))
-            @test intersect(typemin(Int):2:typemax(Int), reverse(frange(typemin(Int), step=2, stop=typemax(Int)))) == typemin(Int):2:typemax(Int)
-
-#            @test intersect(UnitRange(1,2),3) == UnitRange(3,2)
-#            @test intersect(UnitRange(1,2), UnitRange(1,5), UnitRange(3,7), UnitRange(4,6)) == UnitRange(4,3)
-
-            @test intersect(frange(1, 3), 2) == intersect(2, frange(1, 3)) == frange(2, 2)
-            @test intersect(frange(1.0, 3.0), 2) == intersect(2, frange(1.0, 3.0)) == [2.0]
-
-            if VERSION > v"1.2"
-                @testset "Support StepRange with a non-numeric step" begin
-                    start = Date(1914, 7, 28)
-                    stop = Date(1918, 11, 11)
-
-                    @test intersect(frange(start, step=Day(1), stop=stop), start:Day(1):stop) == start:Day(1):stop
-                    @test intersect(start:Day(1):stop, start:Day(5):stop) == start:Day(5):stop
-                    @test intersect(start-Day(10):Day(1):stop-Day(10), start:Day(5):stop) ==
-                                    start:Day(5):stop-Day(10)-mod(stop-start, Day(5))
-                end
-            end
         end
 
         if VERSION > v"1.2"
@@ -691,98 +638,121 @@ for frange in (mrange, srange)
             @test sort(frange(-3, 3), by=abs) == [0,-1,1,-2,2,-3,3]
             @test partialsort(frange(1, 10), 4) == 4
         end
-    end
-end
 
-@testset "LinMRange" begin
-    # issue #20380
-    let r = LinMRange(1,4,4)
-        @test isa(r[1:4], LinMRange)
-    end
-end
+        if frange == mrange
+            # this works with `srange` but takes way too long to run.
+            function loop_range_values(::Type{T}) where T
+                for a = -5:25,
+                    s = [-5:-1; 1:25; ],
+                    d = 1:25,
+                    n = -1:15
 
-@testset "LinSRange" begin
-    let r = LinSRange(1,4,4)
-        @test isa(r[OneToSRange(4)], LinMRange)
-    end
-end
+                    denom = convert(T, d)
+                    strt = convert(T, a)/denom
+                    Δ     = convert(T, s)/denom
+                    stop  = convert(T, (a + (n - 1) * s)) / denom
+                    vals  = T[a:s:(a + (n - 1) * s); ] ./ denom
+                    r = strt:Δ:stop
+                    @test [r;] == vals
+                    @test [frange(strt, stop=stop, length=length(r));] == vals
+                    n = length(r)
+                    @test [r[1:n];] == [r;]
+                    @test [r[2:n];] == [r;][2:end]
+                    @test [r[1:3:n];] == [r;][1:3:n]
+                    @test [r[2:2:n];] == [r;][2:2:n]
+                    @test [r[n:-1:2];] == [r;][n:-1:2]
+                    @test [r[n:-2:1];] == [r;][n:-2:1]
+                end
+            end
 
-
-#=
-
-
-end
-# TODO
-
-
-        function loop_range_values(::Type{T}) where T
-            for a = frange(-5, 25)
-                s = [-5:-1; 1:25; ],
-                d = frange(1, 25),
-                n = frange(-1, 15)
-
-                denom = convert(T, d)
-                strt = convert(T, a)/denom
-                Δ     = convert(T, s)/denom
-                stop  = convert(T, (a + (n - 1) * s)) / denom
-                vals  = T[a:s:(a + (n - 1) * s); ] ./ denom
-                r = strt:Δ:stop
-                @test [r;] == vals
-                @test [range(strt, stop=stop, length=length(r));] == vals
-                n = length(r)
-                @test [r[1:n];] == [r;]
-                @test [r[2:n];] == [r;][2:end]
-                @test [r[1:3:n];] == [r;][1:3:n]
-                @test [r[2:2:n];] == [r;][2:2:n]
-                @test [r[n:-1:2];] == [r;][n:-1:2]
-                @test [r[n:-2:1];] == [r;][n:-2:1]
+            @testset "issue #7420 for type $T" for T = (Float32, Float64,) # BigFloat),
+                loop_range_values(T)
             end
         end
 
-@testset "overflow in length" begin
-    Tset = Int === Int64 ? (Int,UInt,Int128,UInt128) :
-                           (Int,UInt,Int64,UInt64,Int128, UInt128)
-    for T in Tset
-        @test_throws OverflowError length(zero(T):typemax(T))
-        @test_throws OverflowError length(typemin(T):typemax(T))
-        @test_throws OverflowError length(zero(T):one(T):typemax(T))
-        @test_throws OverflowError length(typemin(T):one(T):typemax(T))
-        if T <: Signed
-            @test_throws OverflowError length(-one(T):typemax(T)-one(T))
-            @test_throws OverflowError length(-one(T):one(T):typemax(T)-one(T))
+        @testset "overflow in length" begin
+            Tset = Int === Int64 ? (Int,UInt,Int128,UInt128) :
+                                   (Int,UInt,Int64,UInt64,Int128, UInt128)
+            for T in Tset
+                @test_throws OverflowError length(zero(T):typemax(T))
+                @test_throws OverflowError length(typemin(T):typemax(T))
+                @test_throws OverflowError length(zero(T):one(T):typemax(T))
+                @test_throws OverflowError length(typemin(T):one(T):typemax(T))
+                if T <: Signed
+                    @test_throws OverflowError length(-one(T):typemax(T)-one(T))
+                    @test_throws OverflowError length(-one(T):one(T):typemax(T)-one(T))
+                end
+            end
+        end
+
+        # comparing and hashing ranges
+        @testset "comparing and hashing ranges" begin
+            Rs = AbstractRange[]
+            for r in (frange(1, 1),
+                      frange(1, step=1, stop=1),
+                      frange(1, 2),
+                      frange(1, step=1, stop=2),
+                      map(Int32, frange(1, step=3, stop=17)),
+                      map(Int64, frange(1, step=3, stop=17)),
+                      frange(1, 0),
+                      frange(1, step=-1, stop=0),
+                      frange(17, 0, step=-3),
+                      frange(0.0, step=0.1, stop=1.0),
+                      map(Float32, frange(0.0, step=0.1, stop=1.0)),
+                      map(Float32, ifelse(frange == mrange, LinMRange(0.0, 1.0, 11), LinSRange(0.0, 1.0, 11))),
+                      frange(1.0, step=eps(), stop=1.0) .+ 10eps(),
+                      frange(9007199254740990., step=1.0, stop=9007199254740994),
+                      frange(0, stop=1, length=20),
+                      map(Float32, frange(0, stop=1, length=20)))
+                local r
+                ar = Vector(r)
+                @test r == ar
+                @test isequal(r,ar)
+                @test hash(r) == hash(ar)
+                for s in Rs
+                    as = Vector(s)
+                    @test isequal(r,s) == (hash(r)==hash(s))
+                    @test (r==s) == (ar==as)
+                end
+            end
+        end
+    end
+end
+
+include("intersect.jl")
+
+@testset "LinRange" begin
+    for R in (LinMRange,LinSRange)
+        @testset "LinMRange" begin
+            r = R(1, 4, 4)
+            b = LinRange(1, 4, 4)
+            @test reverse(r) == reverse(b)
+            @test R(r) == r
+            @test R(1:4) == r
+            @test -(r) == -(b)
+            @test -(r, R(2, 5, 4)) == -(b, LinRange(2, 5, 4))
+            @test +(r, R(2, 5, 4)) == +(b, LinRange(2, 5, 4))
+
+            @test R(1,1,1) == LinRange(1, 1, 1)
+
+            @test R{Float64}(r) == LinRange{Float64}(r)
+
+            @test_throws ErrorException r.notfield
+            # issue #20380
+            let r = R(1,4,4)
+                @test isa(r[UnitSRange(1, 4)], StaticRanges.AbstractLinRange)
+            end
         end
     end
 end
 
 
-@testset "issue #7420 for type $T" for T = (Float32, Float64,) # BigFloat),
-    loop_range_values(T)
+@testset "AbstractStepRangeLen" begin
+    @test StaticRanges.floatmrange(1.0, 1.0, 10, 2.0) == Base.floatrange(1.0, 1.0, 10, 2.0)
+    @test StaticRanges.floatsrange(1.0, 1.0, 10, 2.0) == Base.floatrange(1.0, 1.0, 10, 2.0)
 end
+#=
 
-
-
-
-
-# comparing and hashing ranges
-@testset "comparing and hashing ranges" begin
-    Rs = AbstractRange[1:1, 1:1:1, 1:2, 1:1:2,
-                       map(Int32,1:3:17), map(Int64,1:3:17), 1:0, 1:-1:0, 17:-3:0,
-                       0.0:0.1:1.0, map(Float32,0.0:0.1:1.0),map(Float32,LinRange(0.0, 1.0, 11)),
-                       1.0:eps():1.0 .+ 10eps(), 9007199254740990.:1.0:9007199254740994,
-                       range(0, stop=1, length=20), map(Float32, range(0, stop=1, length=20))]
-    for r in Rs
-        local r
-        ar = Vector(r)
-        @test r == ar
-        @test isequal(r,ar)
-        @test hash(r) == hash(ar)
-        for s in Rs
-            as = Vector(s)
-            @test isequal(r,s) == (hash(r)==hash(s))
-            @test (r==s) == (ar==as)
-        end
-    end
-end
 
 #@test 1.0:(.3-.1)/.1 == 1.0:2.0
 

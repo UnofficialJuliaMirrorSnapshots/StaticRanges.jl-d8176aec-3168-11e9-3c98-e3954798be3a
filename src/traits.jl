@@ -9,7 +9,7 @@ Returns `true` if `x` is static.
 """
 isstatic(::X) where {X} = isstatic(X)
 isstatic(::Type{X}) where {X} = false
-
+isstatic(::Type{X}) where {X<:SRange} = true
 
 """
     can_setfirst(x) -> Bool
@@ -94,16 +94,13 @@ can_setstep(::Type{T}) where {T<:StepMRangeLen} = true
 
 Sets the `step` of `x` to `val`.
 """
-function setstep! end
+setstep!(x::AbstractRange{T}, val) where {T} = setstep!(x, convert(T, val))
 function setstep!(r::StepMRange{T,S}, val::S) where {T,S}
     setfield!(r, :step, val)
     setlast!(r, Base.steprange_last(first(r), val, last(r)))
     return r
 end
-setstep!(x::AbstractVector{T}, val) where {T} = setstep!(x, convert(T, val))
-setstep!(r::StepMRange{T,S}, val) where {T,S} = setstep!(r, convert(S, val))
 setstep!(r::StepMRangeLen{T,R,S}, val::S) where {T,R,S} = (setfield!(r, :step, val); r)
-setstep!(r::StepMRangeLen{T,R,S}, val) where {T,R,S} = setstep!(r, convert(S, val))
 
 """
     can_setlength(x) -> Bool
@@ -115,8 +112,6 @@ can_setlength(::T) where {T} = can_setlength(T)
 can_setlength(::Type{T}) where {T} = false
 can_setlength(::Type{T}) where {T<:LinMRange} = true
 can_setlength(::Type{T}) where {T<:StepMRangeLen} = true
-
-
 
 """
     setlength!(x, len)
@@ -164,3 +159,26 @@ function setoffset!(r::StepMRangeLen, val::Int)
     return r
 end
 setoffset!(r::StepMRangeLen, val) = setoffset!(r, Int(val))
+
+"""
+    isforward(x) -> Bool
+
+Returns `true` if `x` is sorted forward.
+"""
+isforward(x) = issorted(x)
+isforward(::ForwardOrdering) = true
+isforward(::Ordering) = false
+isforward(::AbstractUnitRange) = true
+isforward(x::AbstractRange) = step(x) > 0
+
+"""
+    isreverse(x) -> Bool
+
+Returns `true` if `x` is sorted in reverse.
+"""
+isreverse(x) = issorted(x, order=Reverse)
+isreverse(::ReverseOrdering) = true
+isreverse(::Ordering) = false
+isreverse(::AbstractUnitRange) = false
+isreverse(x::AbstractRange) = step(x) < 0
+

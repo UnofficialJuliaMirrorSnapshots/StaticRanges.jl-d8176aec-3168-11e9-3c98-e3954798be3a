@@ -23,7 +23,7 @@ struct LinSRange{T,B,E,L,D} <: AbstractLinRange{T}
             start == stop || throw(ArgumentError("srange($start, stop=$stop, length=$len): endpoints differ"))
             return new{T,start, stop, 1, 1}()
         end
-        return new{T, start, stop, len, max(len-1,1)}()
+        return new{T, T(start), T(stop), len, max(len-1,1)}()
     end
 end
 
@@ -32,7 +32,7 @@ function LinSRange(start, stop, len::Integer)
 end
 
 function Base.getproperty(r::LinSRange, s::Symbol)
-    if s === start
+    if s === :start
         return first(r)
     elseif s === :stop
         return last(r)
@@ -52,6 +52,8 @@ Base.last(::LinSRange{T,B,E,L,D}) where {T,B,E,L,D} = E
 Base.length(::LinSRange{T,B,E,L,D}) where {T,B,E,L,D} = L
 
 lendiv(::LinSRange{T,B,E,L,D}) where {T,B,E,L,D} = D
+
+LinSRange{T}(r::AbstractRange) where {T} = LinSRange{T}(first(r), last(r), length(r))
 
 """
     LinMRange
@@ -87,23 +89,24 @@ Base.length(r::LinMRange) = getfield(r, :len)
 
 lendiv(r::LinMRange) = getfield(r, :lendiv)
 
+LinMRange{T}(r::AbstractRange) where {T}= LinMRange{T}(first(r), last(r), length(r))
 
 for (F,f) in ((:M,:m), (:S,:s))
     LR = Symbol(:Lin, F, :Range)
     frange = Symbol(f, :range)
 
     @eval begin
-        Base.:(-)(r::$(LR)) = $(LR)(-firs(r), -last(r), length(r))
+        Base.:(-)(r::$(LR)) = $(LR)(-first(r), -last(r), length(r))
 
-       $(LR){T}(r::$(LR){T}) where {T} = r
-        $(LR){T}(r::AbstractRange) where {T} = $(LR){T}(first(r), last(r), length(r))
+        $(LR){T}(r::$(LR){T}) where {T} = r
+        #$(LR){T}(r::AbstractRange) where {T} = $(LR){T}(first(r), last(r), length(r))
         $(LR)(r::AbstractRange{T}) where {T} = $(LR){T}(r)
 
         Base.reverse(r::$(LR)) = $(LR)(last(r), first(r), length(r))
 
         function Base.:(-)(r1::$(LR){T}, r2::$(LR){T}) where T
-            len = _len(r1)
-            (len == _len(r2) ||
+            len = length(r1)
+            (len == length(r2) ||
              throw(DimensionMismatch("argument dimensions must match")))
             return $(LR){T}(
                 convert(T, -(first(r1), first(r2))),
@@ -113,8 +116,8 @@ for (F,f) in ((:M,:m), (:S,:s))
         end
 
         function Base.:(+)(r1::$(LR){T}, r2::$(LR){T}) where T
-            len = _len(r1)
-            (len == _len(r2) ||
+            len = length(r1)
+            (len == length(r2) ||
              throw(DimensionMismatch("argument dimensions must match")))
             return $(LR){T}(
                 convert(T, +(first(r1), first(r2))),
