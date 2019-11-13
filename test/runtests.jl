@@ -1,8 +1,12 @@
 using Test, StaticRanges, Dates
-using StaticRanges: can_setfirst, can_setlast, can_setstep, has_step, can_setlength,
-    isstatic, isforward, isreverse
-using Base: OneTo
+using StaticRanges: can_set_first, can_set_last, can_set_step, has_step, can_set_length,
+    stephi, steplo, refhi, reflo, eqmax, eqmin,
+    ltmax, ltmin, gtmax, gtmin, group_max, group_min, min_of_group_max,
+    max_of_group_min, ordmin, ordmax, next_type, prev_type, Unordered
 
+using Base: OneTo
+using Base.Order
+include("order_tests.jl")
 include("twiceprecision.jl")
 include("mutate.jl")
 include("find.jl")
@@ -10,6 +14,67 @@ include("range_interface.jl")
 include("promotion.jl")
 include("broadcast.jl")
 include("onetorange.jl")
+include("intersect.jl")
+
+@testset "UnitRange" begin
+    for R in (UnitMRange, UnitSRange)
+        @testset "$R" begin
+            r = R(1, 10)
+            rfloat = AbstractUnitRange{Float64}(r)
+            @test eltype(rfloat) == Float64
+            @test isa(rfloat, R)
+            @test R{Int}(r) === r
+            @test R{Float64}(r) == R(1., 10.)
+            @test eltype(R{Int}(UnitRange(UInt(1), UInt(10)))) == Int
+            @test R(UnitRange(UInt(1), UInt(10))) == R(UInt(1), UInt(10))
+            @test first(r) == r.start
+            @test last(r) == r.stop
+            @test_throws ErrorException r.notfield
+        end
+    end
+end
+
+@testset "StepRange" begin
+    for R in (StepMRange, StepSRange)
+        @testset "$R" begin
+            r = R(1, 1, 10)
+            @test R(1:10) == 1:1:10
+            @test eltype(R(UInt(1), UInt(1), UInt(10))) == UInt
+            @test R{Int,Int}(r) === r
+            @test eltype(R{UInt,UInt}(r)) == UInt
+            @test first(r) == r.start
+            @test last(r) == r.stop
+            @test_throws ErrorException r.notfield
+        end
+    end
+end
+
+include("steprangelen_test.jl")
+
+@testset "LinRange" begin
+    for R in (LinMRange,LinSRange)
+        @testset "$R" begin
+            r = R(1, 4, 4)
+            b = LinRange(1, 4, 4)
+            @test reverse(r) == reverse(b)
+            @test R(r) == r
+            @test R(1:4) == r
+            @test -(r) == -(b)
+            @test -(r, R(2, 5, 4)) == -(b, LinRange(2, 5, 4))
+            @test +(r, R(2, 5, 4)) == +(b, LinRange(2, 5, 4))
+
+            @test R(1,1,1) == LinRange(1, 1, 1)
+
+            @test R{Float64}(r) == LinRange{Float64}(r)
+
+            @test_throws ErrorException r.notfield
+            # issue #20380
+            let r = R(1,4,4)
+                @test isa(r[UnitSRange(1, 4)], StaticRanges.AbstractLinRange)
+            end
+        end
+    end
+end
 
 for frange in (mrange, srange)
     @testset "$frange" begin
@@ -118,14 +183,16 @@ for frange in (mrange, srange)
                 @test valtype_is_correct(OneToSRange(Int32(4)))
             end
         end
+
         @testset "findall(::Base.Fix2{typeof(in)}, ::Array)" begin
             @test findall(in(3:20), [5.2, 3.3]) == findall(in(Vector(3:20)), [5.2, 3.3])
 
             let span = frange(5, 20),
                 r = frange(-7, step=3, stop=42)
                 @test findall(in(span), r) == 5:10
+
                 r = frange(15, step=-2, stop=-38)
-                @test findall(in(span), r) == 1:6
+                @test findall(in(span), r) == 6:-1:1
             end
         end
 
@@ -719,32 +786,7 @@ for frange in (mrange, srange)
     end
 end
 
-include("intersect.jl")
 
-@testset "LinRange" begin
-    for R in (LinMRange,LinSRange)
-        @testset "LinMRange" begin
-            r = R(1, 4, 4)
-            b = LinRange(1, 4, 4)
-            @test reverse(r) == reverse(b)
-            @test R(r) == r
-            @test R(1:4) == r
-            @test -(r) == -(b)
-            @test -(r, R(2, 5, 4)) == -(b, LinRange(2, 5, 4))
-            @test +(r, R(2, 5, 4)) == +(b, LinRange(2, 5, 4))
-
-            @test R(1,1,1) == LinRange(1, 1, 1)
-
-            @test R{Float64}(r) == LinRange{Float64}(r)
-
-            @test_throws ErrorException r.notfield
-            # issue #20380
-            let r = R(1,4,4)
-                @test isa(r[UnitSRange(1, 4)], StaticRanges.AbstractLinRange)
-            end
-        end
-    end
-end
 
 
 @testset "AbstractStepRangeLen" begin
@@ -752,8 +794,5 @@ end
     @test StaticRanges.floatsrange(1.0, 1.0, 10, 2.0) == Base.floatrange(1.0, 1.0, 10, 2.0)
 end
 #=
-
-
 #@test 1.0:(.3-.1)/.1 == 1.0:2.0
-
 =#

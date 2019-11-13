@@ -26,12 +26,29 @@ export
     # methods
     mrange,
     srange,
-    setfirst!,
-    setstep!,
-    setlast!,
-    setlength!,
-    setref!,
-    setoffset!
+    set_first!,
+    set_step!,
+    set_last!,
+    set_length!,
+    set_ref!,
+    set_offset!,
+    find_first,
+    find_last,
+    find_all,
+    find_max,
+    find_min,
+    cmpmax,
+    cmpmin,
+    # Traits
+    is_static,
+    is_within,
+    is_before,
+    is_after,
+    is_forward,
+    is_reverse,
+    is_ordered,
+    is_contiguous,
+    order
 
 include("twiceprecision.jl")
 include("onetorange.jl")
@@ -44,10 +61,10 @@ const SRange{T} = Union{OneToSRange{T},UnitSRange{T},StepSRange{T},LinSRange{T},
 const MRange{T} = Union{OneToMRange{T},UnitMRange{T},StepMRange{T},LinMRange{T},StepMRangeLen{T}}
 
 include("traits.jl")
+include("order.jl")
 include("promotion.jl")
 include("range.jl")
-#include("initialize.jl")
-
+include("intersect.jl")
 include("broadcast.jl")
 include("operators.jl")
 include("indexing.jl")

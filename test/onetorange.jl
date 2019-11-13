@@ -7,6 +7,8 @@ for (frange, oneto) in ((mrange, OneToMRange),(srange ,OneToSRange))
         end
         let r = oneto(3)
             @test !isempty(r)
+            @test last(r) == r.stop
+            @test_throws ErrorException r.notfield
             @test length(r) == 3
             @test size(r) == (3,)
             @test step(r) == 1
@@ -36,6 +38,7 @@ for (frange, oneto) in ((mrange, OneToMRange),(srange ,OneToSRange))
             show(io, r)
             str = String(take!(io))
             @test str == "$(oneto)(3)"
+            @test in(1, r) == true
         end
 
         @test oneto{Int}(oneto(10)) == oneto(10)

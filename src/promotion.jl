@@ -1,3 +1,12 @@
+
+similar_range(::Union{OneToSRange,UnitSRange,StepSRange,LinSRange,StepSRangeLen}, ::Union{OneToSRange,UnitSRange,StepSRange,LinSRange,StepSRangeLen}) = srange
+similar_range(::Union{OneToSRange,UnitSRange,StepSRange,LinSRange,StepSRangeLen}, ::Union{OneTo,UnitRange,StepRange,LinRange,StepRangeLen}) = range
+similar_range(::Union{OneTo,UnitRange,StepRange,LinRange,StepRangeLen}, ::Union{OneToSRange,UnitSRange,StepSRange,LinSRange,StepSRangeLen}) = range
+similar_range(::Union{OneToMRange,UnitMRange,StepMRange,LinMRange,StepMRangeLen}, ::Union{OneTo,UnitRange,StepRange,LinRange,StepRangeLen}) = mrange
+similar_range(::Union{OneTo,UnitRange,StepRange,LinRange,StepRangeLen}, ::Union{OneToMRange,UnitMRange,StepMRange,LinMRange,StepMRangeLen}) = mrange
+similar_range(::Union{OneToSRange,UnitSRange,StepSRange,LinSRange,StepSRangeLen}, ::Union{OneToMRange,UnitMRange,StepMRange,LinMRange,StepMRangeLen}) = mrange
+similar_range(::Union{OneToMRange,UnitMRange,StepMRange,LinMRange,StepMRangeLen}, ::Union{OneToSRange,UnitSRange,StepSRange,LinSRange,StepSRangeLen}) = mrange
+
 for RANGE_TYPE in (:OneTo,:OneToMRange,:OneToSRange)
     @eval begin
         function StaticArrays.similar_type(
@@ -104,6 +113,9 @@ for S in (:OneTo,:UnitRange,:StepRange,:LinRange,:StepRangeLen)
     end
 end
 
+# Necessary to avoid ambiguities
+Base.promote_rule(a::Type{StepRangeLen{T,R,S}}, b::Type{<:StepMRangeLen}) where {T,R,S} = promote_rule(lower_rangetype(a), b)
+
 function Base.promote_rule(a::Type{StepRangeLen{T,R,S}}, b::Type{StepMRangeLen{T,R,S}}) where {T,R,S}
     return StepMRangeLen{T,R,S}
 end
@@ -178,6 +190,7 @@ end
 Base.promote_rule(a::Type{LinMRange{T1}}, ::Type{StepMRange{T2,Ts2}}) where {T1,T2,Ts2} = promote_rule(a, LinMRange{T2})
 
 Base.promote_rule(a::Type{StepMRangeLen{T1,R,S1}}, ::Type{StepMRange{T2,S2}}) where {T1,T2,R,S1,S2} = promote_rule(a, StepMRangeLen{T2,T2,T2})
+Base.promote_rule(a::Type{<:StepSRangeLen{T1,R,S1}}, ::Type{<:StepSRange{T2,S2}}) where {T1,T2,R,S1,S2} = promote_rule(a, StepMRangeLen{T2,T2,T2})
 Base.promote_rule(a::Type{<:LinSRange{T1}}, ::Type{<:StepSRange{T2,Ts2}}) where {T1,T2,Ts2} = promote_rule(a, LinSRange{T2})
 
 ###
@@ -190,6 +203,9 @@ Base.promote_rule(a::Type{<:UnitSRange{T1}}, b::Type{<:UnitSRange{T2}}) where {T
 Base.promote_rule(::Type{LinMRange{T2}}, ::Type{UnitMRange{T1}}) where {T1,T2} = LinMRange{promote_type(T1,T2)}
 Base.promote_rule(::Type{UnitMRange{T1}}, ::Type{LinMRange{T2}}) where {T1,T2} = LinMRange{promote_type(T1,T2)}
 
+Base.promote_rule(::Type{StepMRange{T1,S1}}, ::Type{UnitMRange{T2}}) where {T1,S1,T2} = promote_rule(StepMRange{T1,S1}, StepMRange{T2,T2})
+Base.promote_rule(::Type{<:StepSRange{T1,S1}}, ::Type{<:UnitSRange{T2}}) where {T1,S1,T2} = promote_rule(StepSRange{T1,S1}, StepSRange{T2,T2})
+
 Base.promote_rule(::Type{<:LinSRange{T2}}, ::Type{<:UnitSRange{T1}}) where {T1,T2} = LinSRange{promote_type(T1,T2)}
 Base.promote_rule(::Type{<:UnitSRange{T1}}, ::Type{<:LinSRange{T2}}) where {T1,T2} = LinSRange{promote_type(T1,T2)}
 
@@ -200,6 +216,9 @@ Base.promote_rule(::Type{<:UnitSRange{T1}}, ::Type{<:LinSRange{T2}}) where {T1,T
 Base.promote_rule(a::Type{LinRange{T}}, ::Type{OR}) where {T,OR<:OneToMRange} = promote_rule(LinMRange{T},LinMRange{eltype(OR)})
 Base.promote_rule(a::Type{<:OneToSRange{T1,Any}}, b::Type{<:OneToSRange{T2,Any}}) where {T1,T2} = OneToSRange{promote_type(T1,T2)}
 Base.promote_rule(a::Type{OneToMRange{T1}}, b::Type{OneToMRange{T2}}) where {T1,T2} = OneToMRange{promote_type(T1,T2)}
+
+Base.promote_rule(a::Type{<:UnitSRange{T1}}, b::Type{<:OneToSRange{T2}}) where {T1,T2} = UnitSRange{promote_type(T1,T2)}
+Base.promote_rule(a::Type{UnitMRange{T1}}, b::Type{OneToMRange{T2}}) where {T1,T2} = UnitMRange{promote_type(T1,T2)}
 
 Base.promote_rule(::Type{OneToMRange{T1}}, ::Type{OneTo{T2}}) where {T1,T2} = promote_rule(OneToMRange{T1},OneToMRange{T2})
 Base.promote_rule(::Type{OneTo{T2}}, ::Type{OneToMRange{T1}}) where {T1,T2} = promote_rule(OneToMRange{T1},OneToMRange{T2})
