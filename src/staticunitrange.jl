@@ -11,10 +11,6 @@ Base.firstindex(::StaticUnitRange) = 1
 
 Base.lastindex(r::StaticUnitRange) = length(r)
 
-function Base.show(io::IO, r::StaticUnitRange)
-    print(io, typeof(r).name, "(", repr(first(r)), ':', repr(last(r)), ")")
-end
-
 """
     UnitSRange
 
@@ -30,9 +26,6 @@ struct UnitSRange{T,F,L} <: StaticUnitRange{T}
 end
 
 UnitSRange{T}(r::AbstractUnitRange) where {T<:Real} = UnitSRange{T}(first(r), last(r))
-
-Base.first(::UnitSRange{T,F,L}) where {T,F,L} = F
-Base.last(::UnitSRange{T,F,L}) where {T,F,L} = L
 
 function Base.getproperty(r::StaticUnitRange, s::Symbol)
     if s === :start
@@ -62,8 +55,15 @@ end
 
 UnitMRange{T}(r::AbstractUnitRange) where {T<:Real} = UnitMRange{T}(first(r), last(r))
 
-Base.first(r::UnitMRange) = getfield(r, :start)
-Base.last(r::UnitMRange) = getfield(r, :stop)
+function Base.setproperty!(r::UnitMRange, s::Symbol, val)
+    if s === :start
+        return set_first!(r, val)
+    elseif s === :stop
+        return set_last!(r, val)
+    else
+        error("type $(typeof(r)) has no property $s")
+    end
+end
 
 for (F,f) in ((:M,:m), (:S,:s))
     UR = Symbol(:Unit, F, :Range)

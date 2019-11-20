@@ -11,6 +11,7 @@ using Base.Broadcast: DefaultArrayStyle
 
 using StaticArrays, ArrayInterface
 using ArrayInterface: can_setindex
+using StaticArrays: Dynamic
 
 export
     StepSRangeLen,
@@ -24,14 +25,15 @@ export
     OneToSRange,
     OneToMRange,
     # methods
+    as_static,
+    as_mutable,
+    as_immutable,
     mrange,
     srange,
     set_first!,
     set_step!,
     set_last!,
     set_length!,
-    set_ref!,
-    set_offset!,
     find_first,
     find_last,
     find_all,
@@ -48,7 +50,28 @@ export
     is_reverse,
     is_ordered,
     is_contiguous,
-    order
+    order,
+    # Continuity traits
+    Continuity,
+    Continuous,
+    Discrete,
+    # reexports
+    Size,
+    Length,
+    similar_type,
+    # AbstractIndices
+    AbstractIndex,
+    Index,
+    IndicesArray,
+    is_index
+
+include("utils.jl")
+include("uniqueness.jl")
+include("continuity.jl")
+include("order.jl")
+include("findall.jl")
+include("findlast.jl")
+include("findfirst.jl")
 
 include("twiceprecision.jl")
 include("onetorange.jl")
@@ -56,21 +79,22 @@ include("staticunitrange.jl")
 include("abstractsteprange.jl")
 include("abstractlinrange.jl")
 include("abstractsteprangelen.jl")
+include("mutability.jl")
 
-const SRange{T} = Union{OneToSRange{T},UnitSRange{T},StepSRange{T},LinSRange{T},StepSRangeLen{T}}
-const MRange{T} = Union{OneToMRange{T},UnitMRange{T},StepMRange{T},LinMRange{T},StepMRangeLen{T}}
+include("filter.jl")
 
+include("first.jl")
+include("last.jl")
+include("step.jl")
+include("length.jl")
 include("traits.jl")
-include("order.jl")
 include("promotion.jl")
 include("range.jl")
 include("intersect.jl")
 include("broadcast.jl")
 include("operators.jl")
-include("indexing.jl")
+include("getindex.jl")
 include("findvalue.jl")
-include("findfirst.jl")
-include("findlast.jl")
-include("findall.jl")
+include("show.jl")
 
 end

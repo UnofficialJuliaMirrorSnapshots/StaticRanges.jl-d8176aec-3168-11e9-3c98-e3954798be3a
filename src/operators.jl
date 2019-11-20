@@ -1,5 +1,6 @@
 Base.reverse(r::StepSRange) = srange(last(r), step=-step(r), stop=first(r))
 Base.reverse(r::StepMRange) = mrange(last(r), step=-step(r), stop=first(r))
+Base.reverse(r::AbstractLinRange) = similar_type(r)(last(r), first(r), length(r))
 
 function Base.reverse(r::AbstractStepRangeLen)
     # If `r` is empty, `length(r) - r.offset + 1 will be nonpositive hence
@@ -7,6 +8,32 @@ function Base.reverse(r::AbstractStepRangeLen)
     # `r.offset`
     offset = isempty(r) ? _offset(r) : length(r) - _offset(r) + 1
     return similar_type(r)(_ref(r), -step_hp(r), length(r), offset)
+end
+
+function Base.reverse!(r::StepMRange)
+    setfield!(r, :step, -step(r))
+    f = first(r)
+    l = last(r)
+    setfield!(r, :stop, f)
+    setfield!(r, :start, l)
+    return r
+end
+
+function Base.reverse!(r::StepMRangeLen)
+    # If `r` is empty, `length(r) - r.offset + 1 will be nonpositive hence
+    # invalid. As `reverse(r)` is also empty, any offset would work so we keep
+    # `r.offset`
+    setfield!(r, :offset, isempty(r) ? _offset(r) : length(r) - _offset(r) + 1)
+    setfield!(r, :step, -step_hp(r))
+    return r
+end
+
+function Base.reverse!(r::LinMRange)
+    f = first(r)
+    l = last(r)
+    setfield!(r, :stop, f)
+    setfield!(r, :start, l)
+    return r
 end
 
 function Base.iterate(r::Union{AbstractLinRange,AbstractStepRangeLen}, i::Int=1)
@@ -20,6 +47,8 @@ Base.isempty(r::Union{AbstractLinRange,AbstractStepRangeLen}) = length(r) == 0
 ###
 ### ==(r1, r2)
 ###
+Base.:(==)(r::OneToRange, s::OneToRange) = last(r) == last(s)
+
 function Base.:(==)(r::StepMRangeLen{T,R,S}, s::StepMRangeLen{T,R,S}) where {T,R,S}
     return (first(r) == first(s)) & (length(r) == length(s)) & (last(r) == last(s))
 end

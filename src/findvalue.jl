@@ -15,13 +15,17 @@ function unsafe_findvalue(val, r::Union{AbstractLinRange,LinRange})
     return round(Integer, (((val - r.start) / (r.stop - r.start)) * r.lendiv) + 1)
 end
 
+unsafe_findvalue(val, ::LinearIndices{1,Tuple{OneTo{Int64}}}) = Int(val)
+
 Base.in(x::Integer, r::OneToRange{<:Integer}) = (1 <= x) & (x <= last(r))
 
-function Base.count(f::Function, r::Union{OneToRange,StaticUnitRange,AbstractLinRange,AbstractStepRange,AbstractStepRangeLen})
-    return length(findall(f, r))
-end
+Base.findall(f::Function, r::UnionRange) = find_all(f, r)
 
-function Base.filter(f::Function, r::Union{OneToRange,StaticUnitRange,AbstractLinRange,AbstractStepRange,AbstractStepRangeLen})
-    isempty(r) && return Int[]
-    return @inbounds(r[findall(f, r)])
-end
+Base.findall(f::Fix2{typeof(in)}, r::UnionRange) = find_all(f, r)
+
+Base.findlast(f::Function, x::UnionRange) = find_last(f, x)
+
+Base.findfirst(f::Function, r::UnionRange) = find_first(f, r)
+
+# TODO this could easily be optimized more
+@propagate_inbounds Base.count(f::Function, r::UnionRange) = length(find_all(f, r))

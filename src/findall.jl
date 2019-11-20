@@ -1,51 +1,62 @@
-
-function Base.findall(f::Function, r::Union{OneToRange,StaticUnitRange,AbstractLinRange,AbstractStepRange,AbstractStepRangeLen})
-    return find_all(f, r)
-end
-
-function Base.findall(f::Fix2{typeof(in)}, r::Union{OneToRange,StaticUnitRange,AbstractLinRange,AbstractStepRange,AbstractStepRangeLen})
-    return find_all(f, r)
-end
-
-find_all(f, x) = find_all(f, x, order(x))
+@propagate_inbounds find_all(f, x) = find_all(f, x, order(x))
 find_all(f, x, xo) = findall(f, x)
 
 find_all(f::Fix2{typeof(in)}, y, yo) = _findin(f.x, order(f.x), y, yo)
 
+_fallback_find_all(f, a) = collect(first(p) for p in pairs(a) if f(last(p)))
+
 # <, <=
-function find_all(f::Fix2{<:Union{typeof(<),typeof(<=)}}, r, ::ForwardOrdering)
-    idx = find_last(f, r, Forward)
-    return isnothing(idx) ? Int[] : firstindex(r):idx
-end
-function find_all(f::Fix2{<:Union{typeof(<),typeof(<=)}}, r, ::ReverseOrdering)
-    idx = find_first(f, r, Reverse)
-    return isnothing(idx) ? Int[] : idx:lastindex(r)
-end
-find_all(f::Fix2{<:Union{typeof(<),typeof(<=)}}, r, ::UnorderedOrdering) = Int[]
+@propagate_inbounds find_all(f::F2Lt, r, ro::ForwardOrdering) = _find_all(keytype(r), firstindex(r), find_last(f, r, ro))
+@propagate_inbounds find_all(f::F2Lt, r, ro::ReverseOrdering) = _find_all(keytype(r), find_first(f, r, ro), lastindex(r))
+find_all(f::F2Lt, r::AbstractRange, ::UnorderedOrdering) = _empty_ur(keytype(r))
+find_all(f::F2Lt, r::AbstractArray, ::UnorderedOrdering) = _fallback_find_all(f, a)
 
 # >, >=
-function find_all(f::Fix2{<:Union{typeof(>),typeof(>=)}}, r, ::ForwardOrdering)
-    idx = find_first(f, r, Forward)
-    return isnothing(idx) ? empty(r) : idx:lastindex(r)
+@propagate_inbounds find_all(f::F2Gt, r, ro::ForwardOrdering) = _find_all(keytype(r), find_first(f, r, ro), lastindex(r))
+@propagate_inbounds find_all(f::F2Gt, r, ro::ReverseOrdering) = _find_all(keytype(r), firstindex(r), find_last(f, r, ro))
+find_all(f::F2Gt, r::AbstractRange, ::UnorderedOrdering) = _empty_ur(keytype(r))
+find_all(f::F2Gt, r::AbstractArray, ::UnorderedOrdering) = _fallback_find_all(f, a)
+
+# find_all(==(x), r)
+find_all(f::F2Eq, r::AbstractRange, ::UnorderedOrdering) = _empty_ur(keytype(r))
+find_all(f::F2Eq, r, ro::Ordering) = _find_all(keytype(r), find_first(f, r, ro), find_last(f, r, ro))
+
+# only really applies to ordered vectors
+_find_all(::Type{T},        fi,        li) where {T} = fi:li
+_find_all(::Type{T}, ::Nothing,        li) where {T} = _empty_ur(T)
+_find_all(::Type{T},        fi, ::Nothing) where {T} = _empty_ur(T)
+_find_all(::Type{T}, ::Nothing, ::Nothing) where {T} = _empty_ur(T)
+
+_empty_ur(::Type{T}) where {T} = one(T):zero(T)
+
+@propagate_inbounds find_all(f::BitAnd, r, ro) = _bit_and(r, ro, find_all(f.f1, r, ro), find_all(f.f2, r, ro))
+@propagate_inbounds find_all(f::BitOr, r, ro) = _bit_or(r, ro, find_all(f.f1, r, ro), find_all(f.f2, r, ro))
+
+function _bit_and(r, ro, inds1, inds2)
+    if isempty(inds1)
+        return isempty(inds2) ? inds2 : inds1
+    else
+        return isempty(inds2) ? inds2 : intersect(inds1, inds2)
+    end
 end
-function find_all(f::Fix2{<:Union{typeof(>),typeof(>=)}}, r, ::ReverseOrdering)
-    idx = find_last(f, r, Reverse)
-    return isnothing(idx) ? empty(r) : firstindex(r):idx
-end
-find_all(f::Fix2{<:Union{typeof(>),typeof(>=)}}, r, ::UnorderedOrdering) = Int[]
 
-
-find_all(f::Fix2{<:Union{typeof(==),typeof(isequal)}}, r, ::UnorderedOrdering) = Int[]
-function find_all(f::Fix2{<:Union{typeof(==),typeof(isequal)}}, r, ro::Ordering)
-    isempty(r) && Int[]
-    idx = find_first(f, r, ro)
-    return isnothing(idx) ? Int[] : idx:findlast(f, r)
+function _bit_or(r, ro, inds1, inds2)
+    if isempty(inds1)
+        return isempty(inds2) ? inds1 : inds2
+    else
+        return isempty(inds2) ? inds1 : _merge_bit_find(inds1, inds2)
+    end
 end
 
-# in
-#for R in (OneToRange,StaticUnitRange,AbstractLinRange,AbstractStepRange,AbstractStepRangeLen)
-#    @eval begin
-#        Base.findall(f::Function, r::$R) = find_all(f, r)
-#    end
-#end
+# we assume that neither of these are empty at this point
+function _merge_bit_find(inds1::AbstractRange{T}, inds2::AbstractRange{T}) where {T}
+    if is_after(inds1, inds2)
+        return vcat(inds2, inds1)
+    elseif is_before(inds1, inds2)
+        return vcat(inds1, inds2)
+    else
+        return _group_min(inds1, Forward, inds2, Forward):_group_max(inds1, Forward, inds2, Forward)
+    end
+end
 
+@propagate_inbounds find_all(f::Fix2{typeof(!=)}, r, ro) = find_all(<(f.x) | >(f.x), r, ro)
